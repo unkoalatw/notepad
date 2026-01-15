@@ -1,16 +1,29 @@
 // 從全域變數解構需要的 React Hooks
 const { useState, useEffect, useMemo, useRef } = React;
 
-// 從全域變數解構 LucideReact 圖示 (純瀏覽器環境下全域變數名為 LucideReact)
-const { 
-  ChevronLeft, Search, SquarePen, Trash2, Share, 
-  MoreHorizontal, Calendar, Folder, PanelLeft, Plus, 
-  X, Link, Image: ImageIcon, Copy, Mail, Pin, 
-  CheckCircle2, Table: TableIcon, Type, ChevronRight, 
-  PanelLeftClose, Sparkles, Loader2, ListChecks 
-} = LucideReact;
+// 由於 Lucide React CDN 有時不穩定，我們建立一個通用的圖示組件
+const Icon = ({ name, size = 24, className = "" }) => {
+  const iconRef = useRef(null);
 
-const APP_STORAGE_KEY = 'ios_notes_data_pro_v3_ai';
+  useEffect(() => {
+    if (iconRef.current && window.lucide) {
+      iconRef.current.innerHTML = window.lucide.createIcons({
+        icons: { [name]: window.lucide.icons[name] }
+      });
+      // 獲取內部的 svg 並設置屬性
+      const svg = iconRef.current.querySelector('svg');
+      if (svg) {
+        svg.setAttribute('width', size);
+        svg.setAttribute('height', size);
+        svg.setAttribute('class', className);
+      }
+    }
+  }, [name, size, className]);
+
+  return <span ref={iconRef} className="inline-flex items-center justify-center" />;
+};
+
+const APP_STORAGE_KEY = 'ios_notes_data_pro_v5_hardcoded';
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent';
 
 const formatNoteDate = (date) => {
@@ -37,13 +50,14 @@ const App = () => {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showAiMenu, setShowAiMenu] = useState(false);
 
+  // 硬編碼的 API Key
+  const apiKey = "AIzaSyB97nG1MCYY0ANbDV0PCZu-XdcsnnIMnio";
+
   const textareaRef = useRef(null);
 
   // --- Gemini API 調用 ---
   const callGemini = async (prompt, systemInstruction) => {
-    const apiKey = ""; // 填入你的 API Key
     const maxRetries = 5;
-    
     const executeRequest = async (attempt) => {
       const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
         method: 'POST',
@@ -135,7 +149,9 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (isLoaded) localStorage.setItem(APP_STORAGE_KEY, JSON.stringify({ notes, folders }));
+    if (isLoaded) {
+      localStorage.setItem(APP_STORAGE_KEY, JSON.stringify({ notes, folders }));
+    }
   }, [notes, folders, isLoaded]);
 
   // --- 計算屬性 ---
@@ -187,21 +203,27 @@ const App = () => {
       <div className={`flex flex-col border-r border-gray-300 bg-[#E5E5EA]/80 backdrop-blur-xl transition-all duration-300 ${showSidebar ? 'w-72' : 'w-0 opacity-0 overflow-hidden'}`}>
         <div className="p-6 mt-6 flex justify-between items-center min-w-[280px]">
           <div className="flex items-center gap-3">
-            <button onClick={() => setShowSidebar(false)} className="text-[#FF9500] p-1.5 hover:bg-gray-200 rounded-lg"><PanelLeftClose size={22} /></button>
+            <button onClick={() => setShowSidebar(false)} className="text-[#FF9500] p-1.5 hover:bg-gray-200 rounded-lg">
+              <Icon name="PanelLeftClose" size={22} />
+            </button>
             <h2 className="text-2xl font-bold text-[#FF9500]">文件夾</h2>
           </div>
-          <SquarePen size={22} className="text-[#FF9500] cursor-pointer" onClick={handleCreateNote} />
+          <button onClick={handleCreateNote} className="text-[#FF9500] p-2 hover:bg-gray-200 rounded-lg">
+            <Icon name="SquarePen" size={22} />
+          </button>
         </div>
         <div className="flex-1 px-3 space-y-1 min-w-[280px]">
           {folders.map(f => (
             <div key={f} onClick={() => setActiveFolder(f)} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer ${activeFolder === f ? 'bg-[#FF9500] text-white' : 'hover:bg-gray-200 text-gray-700'}`}>
-              <Folder size={18} className={activeFolder === f ? 'text-white' : 'text-[#FF9500]'} />
+              <Icon name="Folder" size={18} className={activeFolder === f ? 'text-white' : 'text-[#FF9500]'} />
               <span className="font-semibold flex-1">{f}</span>
               <span className="text-xs opacity-60">{notes.filter(n => f === '所有 iCloud' || n.folder === f).length}</span>
             </div>
           ))}
           {!isAddingFolder ? (
-            <button onClick={() => setIsAddingFolder(true)} className="flex items-center gap-2 p-3 text-[#FF9500] font-bold w-full hover:bg-gray-200 rounded-xl mt-4"><Plus size={20} />新增文件夾</button>
+            <button onClick={() => setIsAddingFolder(true)} className="flex items-center gap-2 p-3 text-[#FF9500] font-bold w-full hover:bg-gray-200 rounded-xl mt-4">
+              <Icon name="Plus" size={20} />新增文件夾
+            </button>
           ) : (
             <div className="p-2"><input autoFocus className="w-full p-2 rounded-lg outline-none border border-[#FF9500]/50" onBlur={() => setIsAddingFolder(false)} onKeyDown={e => e.key === 'Enter' && (setFolders([...folders, e.target.value]), setIsAddingFolder(false))} placeholder="名稱..." /></div>
           )}
@@ -212,11 +234,11 @@ const App = () => {
       <div className={`${selectedNoteId && 'hidden md:flex'} flex flex-col w-full md:w-80 border-r border-gray-300 bg-white`}>
         <div className="p-4 pt-10">
           <div className="flex items-center gap-3 mb-4">
-            {!showSidebar && <button onClick={() => setShowSidebar(true)} className="text-[#FF9500]"><PanelLeft size={24} /></button>}
+            {!showSidebar && <button onClick={() => setShowSidebar(true)} className="text-[#FF9500]"><Icon name="PanelLeft" size={24} /></button>}
             <h1 className="text-3xl font-bold">備忘錄</h1>
           </div>
           <div className="relative">
-            <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+            <Icon name="Search" size={18} className="absolute left-3 top-2.5 text-gray-400" />
             <input className="w-full bg-[#E3E3E8]/60 rounded-xl py-2 pl-10 pr-4 outline-none" placeholder="搜尋" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
           </div>
         </div>
@@ -228,7 +250,7 @@ const App = () => {
                 <span className={`text-xs ${selectedNoteId === n.id ? 'text-white/80' : 'text-gray-500'}`}>{formatNoteDate(n.updatedAt)}</span>
                 <span className={`text-xs truncate ${selectedNoteId === n.id ? 'text-white/60' : 'text-gray-400'}`}>{n.content.split('\n')[1] || '尚未輸入內容'}</span>
               </div>
-              {n.pinned && <Pin size={12} className="absolute top-4 right-3" />}
+              {n.pinned && <div className="absolute top-4 right-3"><Icon name="Pin" size={12} /></div>}
             </div>
           ))}
         </div>
@@ -238,14 +260,20 @@ const App = () => {
       <div className={`${!selectedNoteId && 'hidden md:flex'} flex flex-col flex-1 bg-white relative`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white/90 backdrop-blur-md z-10">
           <div className="flex items-center gap-4">
-            <button className="hidden md:block text-[#FF9500]" onClick={() => setShowSidebar(!showSidebar)}><PanelLeft size={24} /></button>
-            <button className="md:hidden text-[#FF9500] flex items-center gap-1" onClick={() => setSelectedNoteId(null)}><ChevronLeft size={28} /><span className="font-bold">備忘錄</span></button>
+            <button className="hidden md:block text-[#FF9500]" onClick={() => setShowSidebar(!showSidebar)}><Icon name="PanelLeft" size={24} /></button>
+            <button className="md:hidden text-[#FF9500] flex items-center gap-1" onClick={() => setSelectedNoteId(null)}><Icon name="ChevronLeft" size={28} /><span className="font-bold">備忘錄</span></button>
           </div>
           <div className="flex items-center gap-5">
-            <Share size={22} className="text-[#FF9500] cursor-pointer" onClick={() => setShowShareModal(true)} />
-            <Pin size={22} className={`cursor-pointer ${currentNote?.pinned ? 'fill-[#FF9500] text-[#FF9500]' : 'text-[#FF9500]'}`} onClick={() => setNotes(notes.map(n => n.id === selectedNoteId ? {...n, pinned: !n.pinned} : n))} />
-            <Trash2 size={22} className="text-[#FF9500] cursor-pointer" onClick={() => (setNotes(notes.filter(n => n.id !== selectedNoteId)), setSelectedNoteId(null))} />
-            <SquarePen size={22} className="text-[#FF9500] cursor-pointer" onClick={handleCreateNote} />
+            <button onClick={() => setShowShareModal(true)} className="text-[#FF9500]"><Icon name="Share" size={22} /></button>
+            <button onClick={() => setNotes(notes.map(n => n.id === selectedNoteId ? {...n, pinned: !n.pinned} : n))} className="text-[#FF9500]">
+              <Icon name="Pin" size={22} className={currentNote?.pinned ? "fill-[#FF9500]" : ""} />
+            </button>
+            <button onClick={() => (setNotes(notes.filter(n => n.id !== selectedNoteId)), setSelectedNoteId(null))} className="text-[#FF9500]">
+              <Icon name="Trash2" size={22} />
+            </button>
+            <button onClick={handleCreateNote} className="text-[#FF9500]">
+              <Icon name="SquarePen" size={22} />
+            </button>
           </div>
         </div>
 
@@ -257,7 +285,7 @@ const App = () => {
             
             {isAiLoading && (
               <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-[#FF9500] text-white px-5 py-2.5 rounded-full flex items-center gap-3 shadow-2xl z-50 animate-pulse">
-                <Loader2 size={18} className="animate-spin" />
+                <Icon name="Loader2" size={18} className="animate-spin" />
                 <span className="text-sm font-bold tracking-wide">✨ Gemini 正在分析...</span>
               </div>
             )}
@@ -278,13 +306,13 @@ const App = () => {
             {showAiMenu && (
               <div className="absolute bottom-28 left-1/2 -translate-x-1/2 w-56 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-gray-100 overflow-hidden z-50">
                 {[
-                  { id: 'summary', icon: <Sparkles size={16} />, label: '智能摘要' },
-                  { id: 'continue', icon: <SquarePen size={16} />, label: '繼續續寫' },
-                  { id: 'optimize', icon: <Type size={16} />, label: '文字優化' },
-                  { id: 'checklist', icon: <ListChecks size={16} />, label: '提取待辦' }
+                  { id: 'summary', icon: 'Sparkles', label: '智能摘要' },
+                  { id: 'continue', icon: 'SquarePen', label: '繼續續寫' },
+                  { id: 'optimize', icon: 'Type', label: '文字優化' },
+                  { id: 'checklist', icon: 'ListChecks', label: '提取待辦' }
                 ].map(item => (
                   <button key={item.id} onClick={() => handleAiAction(item.id)} className="w-full px-5 py-4 text-left text-sm font-bold flex items-center gap-3 hover:bg-orange-50 text-gray-700 transition-colors border-b border-gray-50 last:border-0">
-                    <span className="text-[#FF9500]">{item.icon}</span> {item.label}
+                    <span className="text-[#FF9500]"><Icon name={item.icon} size={16} /></span> {item.label}
                   </button>
                 ))}
               </div>
@@ -292,17 +320,28 @@ const App = () => {
 
             {/* 工具列 */}
             <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-[90%] max-w-[500px] h-16 bg-white/90 backdrop-blur-2xl rounded-3xl shadow-2xl border border-gray-200 flex items-center justify-around px-4">
-              <button onClick={() => setShowAiMenu(!showAiMenu)} className={`p-3 rounded-2xl transition-all ${showAiMenu ? 'bg-orange-100 text-[#FF9500]' : 'text-[#FF9500] hover:bg-orange-50'}`}><Sparkles size={26} /></button>
+              <button onClick={() => setShowAiMenu(!showAiMenu)} className={`p-3 rounded-2xl transition-all ${showAiMenu ? 'bg-orange-100 text-[#FF9500]' : 'text-[#FF9500] hover:bg-orange-50'}`}>
+                <Icon name="Sparkles" size={26} />
+              </button>
               <div className="w-px h-8 bg-gray-200" />
-              <button onClick={() => insertText('\n- [ ] ')} className="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><CheckCircle2 size={26} /></button>
-              <button className="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><ImageIcon size={26} /></button>
-              <button className="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><TableIcon size={26} /></button>
+              <button onClick={() => insertText('\n- [ ] ')} className="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl">
+                <Icon name="CheckCircle2" size={26} />
+              </button>
+              <button className="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl">
+                <Icon name="ImageIcon" size={26} />
+              </button>
+              <button className="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl">
+                <Icon name="Table" size={26} />
+              </button>
               <div className="w-px h-8 bg-gray-200" />
               <button onClick={() => setSelectedNoteId(null)} className="text-[#FF9500] font-black text-lg px-2">完成</button>
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-300 bg-[#FCFCFD]"><SquarePen size={80} className="opacity-10 mb-4" /><p className="text-xl font-bold">選取備忘錄開始編輯</p></div>
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-300 bg-[#FCFCFD]">
+            <Icon name="SquarePen" size={80} className="opacity-10 mb-4" />
+            <p className="text-xl font-bold">選取備忘錄開始編輯</p>
+          </div>
         )}
       </div>
 
@@ -312,19 +351,19 @@ const App = () => {
           <div className="w-full max-w-xl bg-[#F2F2F7] rounded-t-[40px] p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-8" />
             <div className="flex items-center gap-5 mb-10 bg-white p-5 rounded-3xl shadow-sm">
-              <div className="w-16 h-16 bg-[#FF9500] rounded-2xl flex items-center justify-center text-white shadow-lg"><SquarePen size={32} /></div>
+              <div className="w-16 h-16 bg-[#FF9500] rounded-2xl flex items-center justify-center text-white shadow-lg"><Icon name="SquarePen" size={32} /></div>
               <div><div className="font-black text-xl">{currentNote?.title}</div><div className="text-sm text-gray-400 font-bold">iCloud 備忘錄</div></div>
             </div>
             <div className="grid grid-cols-4 gap-6 mb-10 text-center">
               {[
-                {Icon:Mail,l:'郵件',c:'bg-blue-500'},
-                {Icon:Copy,l:'拷貝',c:'bg-orange-500',a:()=>navigator.clipboard.writeText(currentNote.content)},
-                {Icon:Link,l:'連結',c:'bg-purple-500'},
-                {Icon:MoreHorizontal,l:'更多',c:'bg-gray-400'}
+                {name:'Mail',l:'郵件',c:'bg-blue-500'},
+                {name:'Copy',l:'拷貝',c:'bg-orange-500',a:()=> { navigator.clipboard.writeText(currentNote.content); setShowShareModal(false); }},
+                {name:'Link',l:'連結',c:'bg-purple-500'},
+                {name:'MoreHorizontal',l:'更多',c:'bg-gray-400'}
               ].map((item,idx)=>(
                 <div key={idx} className="flex flex-col items-center gap-3 cursor-pointer" onClick={item.a}>
                   <div className={`${item.c} w-16 h-16 rounded-[22px] flex items-center justify-center text-white shadow-md active:scale-90 transition-transform`}>
-                    <item.Icon size={28} />
+                    <Icon name={item.name} size={28} />
                   </div>
                   <span className="text-xs font-bold text-gray-600">{item.l}</span>
                 </div>
@@ -338,7 +377,7 @@ const App = () => {
       )}
 
       <style>{`
-        body { background-color: #F2F2F7; -webkit-font-smoothing: antialiased; }
+        body { background-color: #F2F2F7; -webkit-font-smoothing: antialiased; margin: 0; }
         textarea { caret-color: #FF9500; }
         ::selection { background-color: rgba(255, 149, 0, 0.2); }
       `}</style>
