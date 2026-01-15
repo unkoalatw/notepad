@@ -42,7 +42,7 @@ const App = () => {
 
   // --- Gemini API 調用 ---
   const callGemini = async (prompt, systemInstruction) => {
-    const apiKey = ""; // 執行環境會自動注入或手動填入
+    const apiKey = "AIzaSyB97nG1MCYY0ANbDV0PCZu-XdcsnnIMnio"; // 執行環境會自動注入或手動填入
     const maxRetries = 5;
     
     const executeRequest = async (attempt) => {
