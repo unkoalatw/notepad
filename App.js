@@ -1,14 +1,14 @@
 // 從全域變數解構需要的 React Hooks
 const { useState, useEffect, useMemo, useRef } = React;
 
-// 從全域變數解構 Lucide 圖示
+// 從全域變數解構 LucideReact 圖示 (純瀏覽器環境下全域變數名為 LucideReact)
 const { 
   ChevronLeft, Search, SquarePen, Trash2, Share, 
   MoreHorizontal, Calendar, Folder, PanelLeft, Plus, 
   X, Link, Image: ImageIcon, Copy, Mail, Pin, 
   CheckCircle2, Table: TableIcon, Type, ChevronRight, 
   PanelLeftClose, Sparkles, Loader2, ListChecks 
-} = lucide;
+} = LucideReact;
 
 const APP_STORAGE_KEY = 'ios_notes_data_pro_v3_ai';
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent';
@@ -33,7 +33,6 @@ const App = () => {
   const [showSidebar, setShowSidebar] = useState(true);
   const [showShareModal, setShowShareModal] = useState(false);
   const [isAddingFolder, setIsAddingFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
   const [isLoaded, setIsLoaded] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showAiMenu, setShowAiMenu] = useState(false);
@@ -42,7 +41,7 @@ const App = () => {
 
   // --- Gemini API 調用 ---
   const callGemini = async (prompt, systemInstruction) => {
-    const apiKey = "AIzaSyB97nG1MCYY0ANbDV0PCZu-XdcsnnIMnio"; // 執行環境會自動注入或手動填入
+    const apiKey = ""; // 填入你的 API Key
     const maxRetries = 5;
     
     const executeRequest = async (attempt) => {
@@ -277,7 +276,7 @@ const App = () => {
 
             {/* AI 選單 */}
             {showAiMenu && (
-              <div className="absolute bottom-28 left-1/2 -translate-x-1/2 w-56 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-in slide-in-from-bottom-2">
+              <div className="absolute bottom-28 left-1/2 -translate-x-1/2 w-56 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-gray-100 overflow-hidden z-50">
                 {[
                   { id: 'summary', icon: <Sparkles size={16} />, label: '智能摘要' },
                   { id: 'continue', icon: <SquarePen size={16} />, label: '繼續續寫' },
@@ -310,17 +309,24 @@ const App = () => {
       {/* 分享面板 */}
       {showShareModal && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/30 backdrop-blur-sm" onClick={() => setShowShareModal(false)}>
-          <div className="w-full max-w-xl bg-[#F2F2F7] rounded-t-[40px] p-8 shadow-2xl animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-xl bg-[#F2F2F7] rounded-t-[40px] p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-8" />
             <div className="flex items-center gap-5 mb-10 bg-white p-5 rounded-3xl shadow-sm">
               <div className="w-16 h-16 bg-[#FF9500] rounded-2xl flex items-center justify-center text-white shadow-lg"><SquarePen size={32} /></div>
               <div><div className="font-black text-xl">{currentNote?.title}</div><div className="text-sm text-gray-400 font-bold">iCloud 備忘錄</div></div>
             </div>
             <div className="grid grid-cols-4 gap-6 mb-10 text-center">
-              {[{i:<Mail/>,l:'郵件',c:'bg-blue-500'},{i:<Copy/>,l:'拷貝',c:'bg-orange-500',a:()=>navigator.clipboard.writeText(currentNote.content)},{i:<Link/>,l:'連結',c:'bg-purple-500'},{i:<MoreHorizontal/>,l:'更多',c:'bg-gray-400'}].map((x,i)=>(
-                <div key={i} className="flex flex-col items-center gap-3 cursor-pointer" onClick={x.a}>
-                  <div className={`${x.c} w-16 h-16 rounded-[22px] flex items-center justify-center text-white shadow-md active:scale-90 transition-transform`}>{React.cloneElement(x.i,{size:28})}</div>
-                  <span className="text-xs font-bold text-gray-600">{x.l}</span>
+              {[
+                {Icon:Mail,l:'郵件',c:'bg-blue-500'},
+                {Icon:Copy,l:'拷貝',c:'bg-orange-500',a:()=>navigator.clipboard.writeText(currentNote.content)},
+                {Icon:Link,l:'連結',c:'bg-purple-500'},
+                {Icon:MoreHorizontal,l:'更多',c:'bg-gray-400'}
+              ].map((item,idx)=>(
+                <div key={idx} className="flex flex-col items-center gap-3 cursor-pointer" onClick={item.a}>
+                  <div className={`${item.c} w-16 h-16 rounded-[22px] flex items-center justify-center text-white shadow-md active:scale-90 transition-transform`}>
+                    <item.Icon size={28} />
+                  </div>
+                  <span className="text-xs font-bold text-gray-600">{item.l}</span>
                 </div>
               ))}
             </div>
@@ -341,5 +347,6 @@ const App = () => {
 };
 
 // React 18 渲染入口
-const root = ReactDOM.createRoot(document.getElementById('root'));
+const container = document.getElementById('root');
+const root = ReactDOM.createRoot(container);
 root.render(<App />);
