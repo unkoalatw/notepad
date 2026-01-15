@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iOS 備忘錄 Pro</title>
+    <title>備忘錄</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -26,7 +26,13 @@
         .glass { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
         ::selection { background-color: rgba(255, 149, 0, 0.2); }
         .sidebar-transition { transition: width 0.3s ease-in-out, opacity 0.3s; }
-        img { max-width: 100%; border-radius: 8px; margin: 12px 0; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        
+        /* 圖片樣式 */
+        img { max-width: 100%; border-radius: 12px; margin: 12px 0; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        
+        /* 表格樣式 */
+        table { width: 100%; border-collapse: collapse; margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; table-layout: fixed; }
+        td { border: 1px solid #e5e7eb; padding: 12px; min-height: 40px; vertical-align: top; background-color: white; }
     </style>
 </head>
 <body class="overflow-hidden select-none">
@@ -87,12 +93,10 @@
             <!-- 頂部導覽列 -->
             <nav class="flex items-center justify-between p-4 border-b border-gray-100 bg-white/90 glass z-10">
                 <div class="flex items-center gap-2">
-                    <!-- 切換左側側邊欄 -->
-                    <button onclick="toggleSidebar()" class="hidden md:block text-[#FF9500] p-2 hover:bg-gray-100 rounded-lg transition-all" title="切換文件夾側邊欄">
+                    <button onclick="toggleSidebar()" class="hidden md:block text-[#FF9500] p-2 hover:bg-gray-100 rounded-lg transition-all" title="切換側邊欄">
                         <i data-lucide="panel-left"></i>
                     </button>
-                    <!-- 新增：切換列表欄 -->
-                    <button onclick="toggleListColumn()" class="hidden md:block text-[#FF9500] p-2 hover:bg-gray-100 rounded-lg transition-all" title="切換備忘錄列表">
+                    <button onclick="toggleListColumn()" class="hidden md:block text-[#FF9500] p-2 hover:bg-gray-100 rounded-lg transition-all" title="切換列表">
                         <i data-lucide="layout-list"></i>
                     </button>
                     <button onclick="closeNoteMobile()" class="md:hidden text-[#FF9500] flex items-center gap-1">
@@ -112,7 +116,6 @@
             <div id="editor-content" class="flex-1 flex flex-col bg-[#FCFCFD] relative overflow-hidden">
                 <div id="editor-time" class="text-center py-4 text-[12px] font-semibold text-gray-400 uppercase tracking-widest"></div>
                 
-                <!-- AI Loading Indicator -->
                 <div id="ai-loader" class="hidden absolute top-12 left-1/2 -translate-x-1/2 bg-[#FF9500] text-white px-5 py-2.5 rounded-full flex items-center gap-3 shadow-2xl z-50 animate-pulse">
                     <i data-lucide="loader-2" class="animate-spin w-4 h-4"></i>
                     <span class="text-sm font-bold tracking-wide">✨ Gemini 正在分析...</span>
@@ -123,6 +126,9 @@
                     contenteditable="true" 
                     placeholder="開始輸入..."
                     oninput="handleEditorInput()"
+                    onfocus="saveSelection()"
+                    onmouseup="saveSelection()"
+                    onkeyup="saveSelection()"
                     class="flex-1 w-full px-8 md:px-20 pb-40 overflow-y-auto text-xl leading-relaxed text-gray-800 no-scrollbar">
                 </div>
 
@@ -148,7 +154,7 @@
                     <div class="w-px h-8 bg-gray-200"></div>
                     <button onclick="insertHtmlAtCursor('<br>- [ ] &nbsp;')" class="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><i data-lucide="check-circle-2"></i></button>
                     <button onclick="document.getElementById('image-input').click()" class="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><i data-lucide="image"></i></button>
-                    <button class="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><i data-lucide="table"></i></button>
+                    <button onclick="insertTable()" class="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><i data-lucide="table"></i></button>
                     <div class="w-px h-8 bg-gray-200"></div>
                     <button onclick="closeNoteMobile()" class="text-[#FF9500] font-black text-lg px-2">完成</button>
                 </div>
@@ -188,7 +194,6 @@
     </div>
 
     <script>
-        // --- 全域變數 ---
         let state = {
             notes: [],
             folders: ['所有 iCloud', '個人', '工作', '靈感'],
@@ -199,11 +204,11 @@
             showList: true
         };
 
-        const STORAGE_KEY = 'ios_notes_html_v3_flex';
+        const STORAGE_KEY = 'ios_notes_html_v4_fix';
         const apiKey = ""; 
         const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent';
+        let lastSelectionRange = null;
 
-        // --- 初始化 ---
         function init() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
@@ -212,7 +217,7 @@
                 state.notes = [{
                     id: 'welcome-1',
                     title: '歡迎使用備忘錄 Pro',
-                    content: '<div>歡迎使用備忘錄 Pro</div><div><br></div><div>現在您可以隱藏左側的任何欄位，享受最寬廣的寫作體驗！</div>',
+                    content: '<div>歡迎使用備忘錄 Pro</div><div><br></div><div>現在您可以順利使用表格與圖片功能了！</div>',
                     updatedAt: new Date().toISOString(),
                     folder: '所有 iCloud',
                     pinned: true
@@ -226,12 +231,104 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         }
 
-        // --- UI 控制 ---
+        // 新增：處理備忘錄選取
+        function selectNote(id) {
+            state.selectedNoteId = id;
+            render();
+        }
+
+        // 新增：拷貝功能
+        function copyContent() {
+            const note = state.notes.find(n => n.id === state.selectedNoteId);
+            if (note) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = note.content;
+                const textToCopy = tempDiv.innerText || tempDiv.textContent;
+                
+                const el = document.createElement('textarea');
+                el.value = textToCopy;
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+                toggleShareModal(false);
+            }
+        }
+
+        function saveSelection() {
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0) {
+                lastSelectionRange = sel.getRangeAt(0);
+            }
+        }
+
+        function restoreSelection() {
+            const editor = document.getElementById('note-editor');
+            editor.focus();
+            if (lastSelectionRange) {
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(lastSelectionRange);
+            }
+        }
+
+        function insertHtmlAtCursor(html) {
+            restoreSelection();
+            let sel = window.getSelection();
+            if (sel.getRangeAt && sel.rangeCount) {
+                let range = sel.getRangeAt(0);
+                range.deleteContents();
+
+                const el = document.createElement("div");
+                el.innerHTML = html;
+                const frag = document.createDocumentFragment();
+                let node, lastNode;
+                while ((node = el.firstChild)) {
+                    lastNode = frag.appendChild(node);
+                }
+                range.insertNode(frag);
+
+                if (lastNode) {
+                    range = range.cloneRange();
+                    range.setStartAfter(lastNode);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+                handleEditorInput();
+            }
+        }
+
+        function insertTable() {
+            const tableHtml = `
+                <table contenteditable="false">
+                    <tbody>
+                        <tr><td contenteditable="true"></td><td contenteditable="true"></td></tr>
+                        <tr><td contenteditable="true"></td><td contenteditable="true"></td></tr>
+                    </tbody>
+                </table>
+                <div><br></div>
+            `;
+            insertHtmlAtCursor(tableHtml);
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imgHtml = `<img src="${e.target.result}" alt="圖片"><div><br></div>`;
+                    insertHtmlAtCursor(imgHtml);
+                };
+                reader.readAsDataURL(file);
+            }
+            event.target.value = '';
+        }
+
         function toggleSidebar(val) {
             state.showSidebar = val !== undefined ? val : !state.showSidebar;
             const aside = document.getElementById('sidebar');
             const openBtn = document.getElementById('sidebar-open-btn');
-            
             if (state.showSidebar) {
                 aside.classList.remove('w-0', 'opacity-0');
                 aside.classList.add('w-72', 'opacity-100');
@@ -247,7 +344,6 @@
         function toggleListColumn(val) {
             state.showList = val !== undefined ? val : !state.showList;
             const listCol = document.getElementById('list-column');
-            
             if (state.showList) {
                 listCol.classList.remove('w-0', 'opacity-0', 'pointer-events-none');
                 listCol.classList.add('w-80', 'opacity-100');
@@ -269,11 +365,10 @@
             };
             state.notes.unshift(newNote);
             state.selectedNoteId = newNote.id;
-            // 如果列表是隱藏的，自動打開它
             if (!state.showList) toggleListColumn(true);
             save();
             render();
-            focusEditor();
+            setTimeout(() => document.getElementById('note-editor').focus(), 100);
         }
 
         function handleEditorInput() {
@@ -304,132 +399,6 @@
                 note.pinned = !note.pinned;
                 save();
                 render();
-            }
-        }
-
-        function handleImageUpload(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const imgHtml = `<img src="${e.target.result}" alt="圖片">`;
-                    insertHtmlAtCursor(imgHtml);
-                };
-                reader.readAsDataURL(file);
-            }
-            event.target.value = '';
-        }
-
-        function insertHtmlAtCursor(html) {
-            const editor = document.getElementById('note-editor');
-            editor.focus();
-            let sel = window.getSelection();
-            if (sel.getRangeAt && sel.rangeCount) {
-                let range = sel.getRangeAt(0);
-                range.deleteContents();
-                const el = document.createElement("div");
-                el.innerHTML = html;
-                const frag = document.createDocumentFragment();
-                let node, lastNode;
-                while ((node = el.firstChild)) lastNode = frag.appendChild(node);
-                range.insertNode(frag);
-                if (lastNode) {
-                    range = range.cloneRange();
-                    range.setStartAfter(lastNode);
-                    range.collapse(true);
-                    sel.removeAllRanges();
-                    sel.addRange(range);
-                }
-            } else {
-                editor.innerHTML += html;
-            }
-            handleEditorInput();
-        }
-
-        function selectNote(id) {
-            state.selectedNoteId = id;
-            render();
-        }
-
-        function closeNoteMobile() {
-            state.selectedNoteId = null;
-            render();
-        }
-
-        function handleSearch(val) {
-            state.searchQuery = val;
-            renderListOnly();
-        }
-
-        function toggleShareModal(show) {
-            const modal = document.getElementById('share-modal');
-            const note = state.notes.find(n => n.id === state.selectedNoteId);
-            if (note) document.getElementById('share-title').innerText = note.title;
-            modal.classList.toggle('hidden', !show);
-        }
-
-        function toggleAiMenu() {
-            const menu = document.getElementById('ai-menu');
-            menu.classList.toggle('hidden');
-        }
-
-        function focusEditor() {
-            const editor = document.getElementById('note-editor');
-            if (editor) editor.focus();
-        }
-
-        async function handleAiAction(type) {
-            const note = state.notes.find(n => n.id === state.selectedNoteId);
-            if (!note || !note.content.trim()) return;
-            toggleAiMenu();
-            document.getElementById('ai-loader').classList.remove('hidden');
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = note.content;
-            const pureText = tempDiv.innerText;
-
-            let systemPrompt = "";
-            switch (type) {
-                case 'summary': systemPrompt = "你是一個專業筆記秘書。請為備忘錄提供精簡繁體中文摘要，使用條列式。"; break;
-                case 'continue': systemPrompt = "你是一個助手。請根據現有內容續寫約 150 字，直接輸出續寫部分。"; break;
-                case 'optimize': systemPrompt = "你是一個文字編輯。請修正語法並優化語氣，直接輸出優化後的全文內容。"; break;
-                case 'checklist': systemPrompt = "請將內容中的行動項目轉換為 '- [ ] 任務名稱' 的格式。僅輸出清單。"; break;
-            }
-
-            try {
-                const result = await callGemini(pureText, systemPrompt);
-                if (result) {
-                    const formattedResult = result.replace(/\n/g, '<br>');
-                    if (type === 'continue') insertHtmlAtCursor(`<br><br>${formattedResult}`);
-                    else if (type === 'optimize') {
-                        document.getElementById('note-editor').innerHTML = formattedResult;
-                        handleEditorInput();
-                    }
-                    else insertHtmlAtCursor(`<br><br><b>--- ✨ AI ${type === 'summary' ? '摘要' : '清單'} ---</b><br>${formattedResult}`);
-                }
-            } catch (e) {
-                console.error(e);
-            } finally {
-                document.getElementById('ai-loader').classList.add('hidden');
-            }
-        }
-
-        async function callGemini(prompt, systemInstruction) {
-            const execute = async () => {
-                const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        systemInstruction: { parts: [{ text: systemInstruction }] }
-                    })
-                });
-                if (!res.ok) throw new Error('API Error');
-                const data = await res.json();
-                return data.candidates?.[0]?.content?.parts?.[0]?.text;
-            };
-            for (let i = 0; i < 5; i++) {
-                try { return await execute(); }
-                catch (e) { await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000)); }
             }
         }
 
@@ -486,7 +455,6 @@
                     ${n.pinned ? `<i data-lucide="pin" class="absolute top-4 right-3 w-3 h-3 ${state.selectedNoteId === n.id ? 'text-white' : 'text-[#FF9500]'}"></i>` : ''}
                 </div>
             `}).join('');
-            
             document.getElementById('notes-count').innerText = `${filtered.length} 個備忘錄`;
             lucide.createIcons();
 
@@ -532,28 +500,61 @@
             return date.toLocaleDateString();
         }
 
-        function copyContent() {
+        async function handleAiAction(type) {
             const note = state.notes.find(n => n.id === state.selectedNoteId);
-            if (note) {
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = note.content;
-                const el = document.createElement('textarea');
-                el.value = tempDiv.innerText;
-                document.body.appendChild(el);
-                el.select();
-                document.execCommand('copy');
-                document.body.removeChild(el);
-                toggleShareModal(false);
+            if (!note || !note.content.trim()) return;
+            toggleAiMenu();
+            document.getElementById('ai-loader').classList.remove('hidden');
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = note.content;
+            const pureText = tempDiv.innerText;
+
+            let systemPrompt = "";
+            switch (type) {
+                case 'summary': systemPrompt = "你是一個專業筆記秘書。請為備忘錄提供精簡繁體中文摘要。"; break;
+                case 'continue': systemPrompt = "你是一個助手。請續寫約 150 字，直接輸出續寫部分。"; break;
+                case 'optimize': systemPrompt = "你是一個文字編輯。請修正語法優化語氣。"; break;
+                case 'checklist': systemPrompt = "將內容轉為 '- [ ] 任務' 格式。"; break;
+            }
+
+            try {
+                const result = await callGemini(pureText, systemPrompt);
+                if (result) {
+                    const formattedResult = result.replace(/\n/g, '<br>');
+                    insertHtmlAtCursor(`<br><br><b>--- ✨ AI ---</b><br>${formattedResult}`);
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                document.getElementById('ai-loader').classList.add('hidden');
             }
         }
 
-        function showAddFolderInput() {
-            const name = prompt("請輸入文件夾名稱：");
-            if (name && !state.folders.includes(name)) {
-                state.folders.push(name);
-                save();
-                render();
+        async function callGemini(prompt, systemInstruction) {
+            const execute = async () => {
+                const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        systemInstruction: { parts: [{ text: systemInstruction }] }
+                    })
+                });
+                const data = await res.json();
+                return data.candidates?.[0]?.content?.parts?.[0]?.text;
+            };
+            for (let i = 0; i < 5; i++) {
+                try { return await execute(); } catch (e) { await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000)); }
             }
+        }
+
+        function handleSearch(val) { state.searchQuery = val; renderListOnly(); }
+        function toggleShareModal(show) { document.getElementById('share-modal').classList.toggle('hidden', !show); }
+        function toggleAiMenu() { document.getElementById('ai-menu').classList.toggle('hidden'); }
+        function closeNoteMobile() { state.selectedNoteId = null; render(); }
+        function showAddFolderInput() {
+            const name = prompt("名稱：");
+            if (name) { state.folders.push(name); save(); render(); }
         }
 
         window.onload = init;
