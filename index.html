@@ -13,15 +13,27 @@
             background-color: #F2F2F7;
             -webkit-font-smoothing: antialiased;
         }
-        textarea { caret-color: #FF9500; resize: none; }
+        [contenteditable] { 
+            outline: none; 
+            caret-color: #FF9500;
+        }
+        [contenteditable]:empty:before {
+            content: attr(placeholder);
+            color: #d1d5db;
+            cursor: text;
+        }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .glass { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
         ::selection { background-color: rgba(255, 149, 0, 0.2); }
         .sidebar-transition { transition: width 0.3s ease-in-out, opacity 0.3s; }
+        img { max-width: 100%; border-radius: 8px; margin: 12px 0; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body class="overflow-hidden select-none">
     <div id="app" class="flex h-screen w-full text-black">
+        <!-- 隱藏的檔案上傳 -->
+        <input type="file" id="image-input" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+
         <!-- 1. 左側邊欄：文件夾系統 -->
         <aside id="sidebar" class="sidebar-transition flex flex-col border-r border-gray-300 bg-[#E5E5EA]/70 glass z-20 w-72">
             <div class="p-6 mt-6 flex justify-between items-center min-w-[280px]">
@@ -36,7 +48,7 @@
                 </button>
             </div>
             
-            <div class="flex-1 px-3 space-y-1 overflow-y-auto min-w-[280px]">
+            <div class="flex-1 px-3 space-y-1 overflow-y-auto min-w-[280px] no-scrollbar">
                 <div class="text-[11px] font-semibold text-gray-500 ml-2 mb-1 uppercase tracking-wider">iCloud</div>
                 <div id="folder-list"></div>
                 <div id="folder-add-container">
@@ -49,8 +61,8 @@
         </aside>
 
         <!-- 2. 中間欄：備忘錄列表 -->
-        <section id="list-column" class="flex flex-col w-full md:w-80 border-r border-gray-300 bg-white relative transition-all">
-            <div class="p-4 pt-12 md:pt-6">
+        <section id="list-column" class="sidebar-transition flex flex-col w-80 border-r border-gray-300 bg-white relative">
+            <div class="p-4 pt-12 md:pt-6 min-w-[320px]">
                 <div class="flex justify-between items-center mb-4">
                     <div class="flex items-center gap-3">
                         <button id="sidebar-open-btn" onclick="toggleSidebar(true)" class="hidden text-[#FF9500] p-1.5 hover:bg-gray-100 rounded-lg">
@@ -66,17 +78,22 @@
                 </div>
             </div>
 
-            <div id="notes-list" class="flex-1 overflow-y-auto px-4 pb-20 space-y-1 no-scrollbar"></div>
-            <div id="notes-count" class="absolute bottom-0 w-full p-4 bg-white/80 glass border-t border-gray-100 text-center text-[12px] text-gray-500"></div>
+            <div id="notes-list" class="flex-1 overflow-y-auto px-4 pb-20 space-y-1 no-scrollbar min-w-[320px]"></div>
+            <div id="notes-count" class="absolute bottom-0 w-full p-4 bg-white/80 glass border-t border-gray-100 text-center text-[12px] text-gray-500 min-w-[320px]"></div>
         </section>
 
         <!-- 3. 右側：編輯區域 -->
         <main id="editor-column" class="flex-1 flex flex-col bg-white relative hidden md:flex">
             <!-- 頂部導覽列 -->
             <nav class="flex items-center justify-between p-4 border-b border-gray-100 bg-white/90 glass z-10">
-                <div class="flex items-center gap-4">
-                    <button onclick="toggleSidebar()" class="hidden md:block text-[#FF9500] p-2 hover:bg-gray-100 rounded-lg transition-all">
+                <div class="flex items-center gap-2">
+                    <!-- 切換左側側邊欄 -->
+                    <button onclick="toggleSidebar()" class="hidden md:block text-[#FF9500] p-2 hover:bg-gray-100 rounded-lg transition-all" title="切換文件夾側邊欄">
                         <i data-lucide="panel-left"></i>
+                    </button>
+                    <!-- 新增：切換列表欄 -->
+                    <button onclick="toggleListColumn()" class="hidden md:block text-[#FF9500] p-2 hover:bg-gray-100 rounded-lg transition-all" title="切換備忘錄列表">
+                        <i data-lucide="layout-list"></i>
                     </button>
                     <button onclick="closeNoteMobile()" class="md:hidden text-[#FF9500] flex items-center gap-1">
                         <i data-lucide="chevron-left" class="w-7 h-7"></i>
@@ -92,7 +109,7 @@
                 </div>
             </nav>
 
-            <div id="editor-content" class="flex-1 flex flex-col bg-[#FCFCFD] relative">
+            <div id="editor-content" class="flex-1 flex flex-col bg-[#FCFCFD] relative overflow-hidden">
                 <div id="editor-time" class="text-center py-4 text-[12px] font-semibold text-gray-400 uppercase tracking-widest"></div>
                 
                 <!-- AI Loading Indicator -->
@@ -101,8 +118,13 @@
                     <span class="text-sm font-bold tracking-wide">✨ Gemini 正在分析...</span>
                 </div>
 
-                <textarea id="note-textarea" class="flex-1 w-full px-8 md:px-20 pb-40 bg-transparent outline-none text-xl leading-relaxed text-gray-800"
-                    placeholder="開始輸入..." oninput="updateNote(this.value)"></textarea>
+                <!-- 編輯器 -->
+                <div id="note-editor" 
+                    contenteditable="true" 
+                    placeholder="開始輸入..."
+                    oninput="handleEditorInput()"
+                    class="flex-1 w-full px-8 md:px-20 pb-40 overflow-y-auto text-xl leading-relaxed text-gray-800 no-scrollbar">
+                </div>
 
                 <!-- AI 選單 -->
                 <div id="ai-menu" class="hidden absolute bottom-28 left-1/2 -translate-x-1/2 w-56 bg-white/95 glass rounded-3xl shadow-2xl border border-gray-100 overflow-hidden z-50">
@@ -124,8 +146,8 @@
                 <div class="absolute bottom-10 left-1/2 -translate-x-1/2 w-[90%] max-w-[500px] h-16 bg-white/90 glass rounded-3xl shadow-2xl border border-gray-200 flex items-center justify-around px-4">
                     <button onclick="toggleAiMenu()" class="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><i data-lucide="sparkles"></i></button>
                     <div class="w-px h-8 bg-gray-200"></div>
-                    <button onclick="insertAtCursor('\n- [ ] ')" class="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><i data-lucide="check-circle-2"></i></button>
-                    <button class="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><i data-lucide="image"></i></button>
+                    <button onclick="insertHtmlAtCursor('<br>- [ ] &nbsp;')" class="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><i data-lucide="check-circle-2"></i></button>
+                    <button onclick="document.getElementById('image-input').click()" class="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><i data-lucide="image"></i></button>
                     <button class="p-3 text-[#FF9500] hover:bg-orange-50 rounded-2xl"><i data-lucide="table"></i></button>
                     <div class="w-px h-8 bg-gray-200"></div>
                     <button onclick="closeNoteMobile()" class="text-[#FF9500] font-black text-lg px-2">完成</button>
@@ -173,11 +195,12 @@
             activeFolder: '所有 iCloud',
             selectedNoteId: null,
             searchQuery: '',
-            showSidebar: true
+            showSidebar: true,
+            showList: true
         };
 
-        const STORAGE_KEY = 'ios_notes_html_v1';
-        const apiKey = ""; // 執行環境自動注入
+        const STORAGE_KEY = 'ios_notes_html_v3_flex';
+        const apiKey = ""; 
         const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent';
 
         // --- 初始化 ---
@@ -188,8 +211,8 @@
             } else {
                 state.notes = [{
                     id: 'welcome-1',
-                    title: '歡迎使用 HTML 版備忘錄 Pro',
-                    content: '歡迎使用 HTML 版備忘錄 Pro\n\n這是一個完整的 1:1 實作版本。',
+                    title: '歡迎使用備忘錄 Pro',
+                    content: '<div>歡迎使用備忘錄 Pro</div><div><br></div><div>現在您可以隱藏左側的任何欄位，享受最寬廣的寫作體驗！</div>',
                     updatedAt: new Date().toISOString(),
                     folder: '所有 iCloud',
                     pinned: true
@@ -199,34 +222,72 @@
             lucide.createIcons();
         }
 
-        // --- 資料操作 ---
         function save() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        // --- UI 控制 ---
+        function toggleSidebar(val) {
+            state.showSidebar = val !== undefined ? val : !state.showSidebar;
+            const aside = document.getElementById('sidebar');
+            const openBtn = document.getElementById('sidebar-open-btn');
+            
+            if (state.showSidebar) {
+                aside.classList.remove('w-0', 'opacity-0');
+                aside.classList.add('w-72', 'opacity-100');
+                openBtn.classList.add('hidden');
+            } else {
+                aside.classList.remove('w-72', 'opacity-100');
+                aside.classList.add('w-0', 'opacity-0');
+                openBtn.classList.remove('hidden');
+            }
+            save();
+        }
+
+        function toggleListColumn(val) {
+            state.showList = val !== undefined ? val : !state.showList;
+            const listCol = document.getElementById('list-column');
+            
+            if (state.showList) {
+                listCol.classList.remove('w-0', 'opacity-0', 'pointer-events-none');
+                listCol.classList.add('w-80', 'opacity-100');
+            } else {
+                listCol.classList.remove('w-80', 'opacity-100');
+                listCol.classList.add('w-0', 'opacity-0', 'pointer-events-none');
+            }
+            save();
         }
 
         function createNewNote() {
             const newNote = {
                 id: Date.now().toString(),
                 title: '新備忘錄',
-                content: '',
+                content: '<div></div>',
                 updatedAt: new Date().toISOString(),
                 folder: state.activeFolder === '所有 iCloud' ? '個人' : state.activeFolder,
                 pinned: false
             };
             state.notes.unshift(newNote);
             state.selectedNoteId = newNote.id;
+            // 如果列表是隱藏的，自動打開它
+            if (!state.showList) toggleListColumn(true);
             save();
             render();
+            focusEditor();
         }
 
-        function updateNote(val) {
+        function handleEditorInput() {
+            const editor = document.getElementById('note-editor');
             const note = state.notes.find(n => n.id === state.selectedNoteId);
             if (note) {
-                note.content = val;
-                note.title = val.split('\n')[0] || '無標題';
+                note.content = editor.innerHTML;
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = note.content;
+                const text = tempDiv.innerText || tempDiv.textContent;
+                note.title = text.split('\n')[0].trim() || '無標題';
                 note.updatedAt = new Date().toISOString();
                 save();
-                renderListOnly(); // 只更新列表避免編輯器閃爍
+                renderListOnly();
             }
         }
 
@@ -246,21 +307,43 @@
             }
         }
 
-        // --- UI 控制 ---
-        function toggleSidebar(val) {
-            state.showSidebar = val !== undefined ? val : !state.showSidebar;
-            const aside = document.getElementById('sidebar');
-            const openBtn = document.getElementById('sidebar-open-btn');
-            
-            if (state.showSidebar) {
-                aside.classList.remove('w-0', 'opacity-0');
-                aside.classList.add('w-72', 'opacity-100');
-                openBtn.classList.add('hidden');
-            } else {
-                aside.classList.remove('w-72', 'opacity-100');
-                aside.classList.add('w-0', 'opacity-0');
-                openBtn.classList.remove('hidden');
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imgHtml = `<img src="${e.target.result}" alt="圖片">`;
+                    insertHtmlAtCursor(imgHtml);
+                };
+                reader.readAsDataURL(file);
             }
+            event.target.value = '';
+        }
+
+        function insertHtmlAtCursor(html) {
+            const editor = document.getElementById('note-editor');
+            editor.focus();
+            let sel = window.getSelection();
+            if (sel.getRangeAt && sel.rangeCount) {
+                let range = sel.getRangeAt(0);
+                range.deleteContents();
+                const el = document.createElement("div");
+                el.innerHTML = html;
+                const frag = document.createDocumentFragment();
+                let node, lastNode;
+                while ((node = el.firstChild)) lastNode = frag.appendChild(node);
+                range.insertNode(frag);
+                if (lastNode) {
+                    range = range.cloneRange();
+                    range.setStartAfter(lastNode);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+            } else {
+                editor.innerHTML += html;
+            }
+            handleEditorInput();
         }
 
         function selectNote(id) {
@@ -290,45 +373,38 @@
             menu.classList.toggle('hidden');
         }
 
-        function insertAtCursor(text) {
-            const textarea = document.getElementById('note-textarea');
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
-            const content = textarea.value;
-            const newVal = content.substring(0, start) + text + content.substring(end);
-            textarea.value = newVal;
-            updateNote(newVal);
-            textarea.focus();
-            textarea.setSelectionRange(start + text.length, start + text.length);
+        function focusEditor() {
+            const editor = document.getElementById('note-editor');
+            if (editor) editor.focus();
         }
 
-        // --- AI 邏輯 ---
         async function handleAiAction(type) {
             const note = state.notes.find(n => n.id === state.selectedNoteId);
             if (!note || !note.content.trim()) return;
-
             toggleAiMenu();
             document.getElementById('ai-loader').classList.remove('hidden');
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = note.content;
+            const pureText = tempDiv.innerText;
 
             let systemPrompt = "";
             switch (type) {
-                case 'summary': systemPrompt = "你是一個專業的筆記秘書。請為這段備忘錄提供精簡的繁體中文摘要。"; break;
-                case 'continue': systemPrompt = "你是一個助手。請根據現有內容續寫約 100 字，直接輸出續寫部分。"; break;
-                case 'optimize': systemPrompt = "你是一個文字編輯。請修正語法並優化語氣，直接輸出優化後的全文。"; break;
+                case 'summary': systemPrompt = "你是一個專業筆記秘書。請為備忘錄提供精簡繁體中文摘要，使用條列式。"; break;
+                case 'continue': systemPrompt = "你是一個助手。請根據現有內容續寫約 150 字，直接輸出續寫部分。"; break;
+                case 'optimize': systemPrompt = "你是一個文字編輯。請修正語法並優化語氣，直接輸出優化後的全文內容。"; break;
                 case 'checklist': systemPrompt = "請將內容中的行動項目轉換為 '- [ ] 任務名稱' 的格式。僅輸出清單。"; break;
             }
 
             try {
-                const result = await callGemini(note.content, systemPrompt);
+                const result = await callGemini(pureText, systemPrompt);
                 if (result) {
-                    let newContent = note.content;
-                    if (type === 'continue') newContent += "\n\n" + result;
-                    else if (type === 'optimize') newContent = result;
-                    else newContent += `\n\n--- ✨ AI ${type === 'summary' ? '摘要' : '清單'} ---\n` + result;
-                    
-                    document.getElementById('note-textarea').value = newContent;
-                    updateNote(newContent);
-                    render();
+                    const formattedResult = result.replace(/\n/g, '<br>');
+                    if (type === 'continue') insertHtmlAtCursor(`<br><br>${formattedResult}`);
+                    else if (type === 'optimize') {
+                        document.getElementById('note-editor').innerHTML = formattedResult;
+                        handleEditorInput();
+                    }
+                    else insertHtmlAtCursor(`<br><br><b>--- ✨ AI ${type === 'summary' ? '摘要' : '清單'} ---</b><br>${formattedResult}`);
                 }
             } catch (e) {
                 console.error(e);
@@ -351,18 +427,18 @@
                 const data = await res.json();
                 return data.candidates?.[0]?.content?.parts?.[0]?.text;
             };
-
             for (let i = 0; i < 5; i++) {
                 try { return await execute(); }
                 catch (e) { await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000)); }
             }
         }
 
-        // --- 渲染邏輯 ---
         function render() {
             renderFolders();
             renderListOnly();
             renderEditor();
+            toggleSidebar(state.showSidebar);
+            toggleListColumn(state.showList);
             lucide.createIcons();
         }
 
@@ -384,7 +460,10 @@
 
         function renderListOnly() {
             const filtered = state.notes.filter(n => {
-                const matchesSearch = n.title.toLowerCase().includes(state.searchQuery.toLowerCase()) || n.content.toLowerCase().includes(state.searchQuery.toLowerCase());
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = n.content;
+                const pureText = tempDiv.innerText.toLowerCase();
+                const matchesSearch = n.title.toLowerCase().includes(state.searchQuery.toLowerCase()) || pureText.includes(state.searchQuery.toLowerCase());
                 const matchesFolder = state.activeFolder === '所有 iCloud' || n.folder === state.activeFolder;
                 return matchesSearch && matchesFolder;
             }).sort((a, b) => {
@@ -393,21 +472,24 @@
             });
 
             const list = document.getElementById('notes-list');
-            list.innerHTML = filtered.map(n => `
+            list.innerHTML = filtered.map(n => {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = n.content;
+                const subText = tempDiv.innerText.split('\n')[1] || '尚未輸入內容';
+                return `
                 <div onclick="selectNote('${n.id}')" class="p-4 rounded-2xl cursor-pointer relative group ${state.selectedNoteId === n.id ? 'bg-[#FF9500] text-white shadow-lg' : 'hover:bg-gray-100 border-b border-gray-50'}">
                     <div class="font-bold truncate text-[16px] mb-0.5 pr-6">${n.title || '新備忘錄'}</div>
                     <div class="flex items-center gap-2">
                         <span class="text-[13px] font-medium shrink-0 ${state.selectedNoteId === n.id ? 'text-white/80' : 'text-gray-500'}">${formatDate(n.updatedAt)}</span>
-                        <span class="text-[13px] truncate ${state.selectedNoteId === n.id ? 'text-white/60' : 'text-gray-400'}">${n.content.split('\n')[1] || '尚未輸入內容'}</span>
+                        <span class="text-[13px] truncate ${state.selectedNoteId === n.id ? 'text-white/60' : 'text-gray-400'}">${subText}</span>
                     </div>
                     ${n.pinned ? `<i data-lucide="pin" class="absolute top-4 right-3 w-3 h-3 ${state.selectedNoteId === n.id ? 'text-white' : 'text-[#FF9500]'}"></i>` : ''}
                 </div>
-            `).join('');
+            `}).join('');
             
             document.getElementById('notes-count').innerText = `${filtered.length} 個備忘錄`;
             lucide.createIcons();
 
-            // Mobile view toggle
             const listCol = document.getElementById('list-column');
             const editorCol = document.getElementById('editor-column');
             if (window.innerWidth < 768) {
@@ -423,22 +505,22 @@
 
         function renderEditor() {
             const note = state.notes.find(n => n.id === state.selectedNoteId);
-            const content = document.getElementById('editor-content');
+            const contentDiv = document.getElementById('editor-content');
             const placeholder = document.getElementById('editor-placeholder');
-            const textarea = document.getElementById('note-textarea');
+            const editor = document.getElementById('note-editor');
             const timeDiv = document.getElementById('editor-time');
             const pinBtn = document.getElementById('pin-btn');
 
             if (note) {
-                content.classList.remove('hidden');
+                contentDiv.classList.remove('hidden');
                 placeholder.classList.add('hidden');
-                textarea.value = note.content;
+                if (editor.innerHTML !== note.content) editor.innerHTML = note.content;
                 timeDiv.innerText = new Date(note.updatedAt).toLocaleString('zh-TW', { 
                     year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
                 });
                 pinBtn.classList.toggle('fill-[#FF9500]', note.pinned);
             } else {
-                content.classList.add('hidden');
+                contentDiv.classList.add('hidden');
                 placeholder.classList.remove('hidden');
             }
         }
@@ -453,8 +535,10 @@
         function copyContent() {
             const note = state.notes.find(n => n.id === state.selectedNoteId);
             if (note) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = note.content;
                 const el = document.createElement('textarea');
-                el.value = note.content;
+                el.value = tempDiv.innerText;
                 document.body.appendChild(el);
                 el.select();
                 document.execCommand('copy');
