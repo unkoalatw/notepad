@@ -2,15 +2,20 @@
 <html>
 <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>iOS Notes AI</title>
+    <!-- 載入 React & Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 載入 Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- 載入 Lucide React 版 (這點最重要) -->
+    <script src="https://unpkg.com/lucide-react@latest"></script>
 </head>
-<body>
+<body class="bg-[#F2F2F7]">
     <div id="root"></div>
+    <!-- 載入你的 App.js -->
     <script type="text/babel" src="App.js"></script>
 </body>
 </html>
